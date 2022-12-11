@@ -22,6 +22,8 @@ This is an implementation of __stdlib malloc__. Heap is an array of uintptr_t. T
 
 - [Danluu's malloc tutorial](https://danluu.com/malloc-tutorial/)
 - [Danluu's malloc repo](https://github.com/danluu/malloc-tutorial)
-- [Data structure alignment](https://en.wikipedia.org/wiki/Data_structure_alignment)
+- [Data structure alignment Wikipedia page](https://en.wikipedia.org/wiki/Data_structure_alignment)
+- [Garbage collection Wikipedia page](https://en.wikipedia.org/wiki/Garbage_collection_(computer_science))
+- [Jacob Sorber's Garbage collection video](https://www.youtube.com/watch?v=Htwj4jJQeRc)
 
 
