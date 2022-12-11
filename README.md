@@ -19,7 +19,7 @@ This is an implementation of __stdlib malloc__. Heap is an array of uintptr_t. T
 - No tricks that obscure the pointers
 
 ---
-**I followed Tsoding's "Artifacts of that Memory Management Tsoding Session" tutorial so this reposity is very much identical to his one:**
+**I followed Tsoding's "Artifacts of that Memory Management Tsoding Session" tutorial so this repository is very much identical to his one:**
 - [Tsoding's repo](https://github.com/tsoding/memalloc/)
 - [Tsoding Writing My Own Malloc in C Video](https://www.youtube.com/watch?v=sZ8GJ1TiMdk)
 - [Tsoding Writing Garbage Collector in C Video](https://www.youtube.com/watch?v=2JgEKEd3tw8 )
