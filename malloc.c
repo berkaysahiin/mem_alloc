@@ -1,12 +1,22 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <assert.h>
+#include <stdbool.h>
 
 #define MAX_CHUNK_COUNT 1024
 #define HEAP_SIZE_BYTES 64000
-char heap[HEAP_SIZE_BYTES];
+#define HEAP_SIZE_WORDS (HEAP_SIZE_BYTES) / (sizeof(uintptr_t))
+
+static_assert(HEAP_SIZE_BYTES % sizeof(uintptr_t) == 0);
+uintptr_t heap[HEAP_SIZE_WORDS];
+const uintptr_t* stack_base;
+void *to_free[MAX_CHUNK_COUNT] = {0};
+size_t to_free_count = 0;
 
 typedef struct {
-  void *start;
+  uintptr_t* start;
   size_t size;
 }chunk;
 
@@ -14,6 +24,8 @@ typedef struct {
   int count;
   chunk chunks[MAX_CHUNK_COUNT];
 }chunk_list;
+
+bool reachable_chunks[MAX_CHUNK_COUNT] = {0};
 
 
 chunk_list free_chunks = {
@@ -36,6 +48,9 @@ int index_chunk(chunk_list, chunk);
 void insert_chunk_attr(chunk_list* list, void* start, size_t size);
 void mem_free(void *ptr);
 
+void heap_collect();
+static void mark_region(const uintptr_t *start, const uintptr_t *end);
+
 int main() 
 {
   printf("-----INITIAL FREE CHUNKS-------\n");
@@ -43,7 +58,8 @@ int main()
 
   int* arr[20];
   for(int i = 0; i < 20; i++) {
-    arr[i] = mem_alloc(sizeof(int));
+    arr[i] = mem_alloc(sizeof(int) * (i+1));
+    printf("Allocated %ld\n",sizeof(int) * (i+1)); 
   }
 
   printf("-----AFTER ALLOC: ALLOCATED CHUNKS-------\n");
@@ -75,19 +91,21 @@ void print_chunk_list(chunk_list list)
     }
 }
 
-void* mem_alloc(size_t size)
+void* mem_alloc(size_t size_bytes)
 {
-  if(size < 0) return NULL;
+  const size_t word_size = (size_bytes + sizeof(uintptr_t) - 1) / sizeof(uintptr_t);
+  if(word_size < 0) return NULL;
+  merge_fragments(&free_chunks);
 
   for(int i = 0; i < free_chunks.count; i++) {
     const chunk c = free_chunks.chunks[i];
-    if(c.size >= size) {
+    if(c.size >= word_size) {
       remove_at_index(&free_chunks, i);
-      const size_t left_size = c.size - size;
-      insert_chunk_attr(&allocated_chunks, c.start, size);
+      const size_t left_size_word = c.size - word_size;
+      insert_chunk_attr(&allocated_chunks, c.start, word_size);
       
-      if(left_size > 0) {
-        insert_chunk_attr(&free_chunks, c.start + size, left_size);
+      if(left_size_word > 0) {
+        insert_chunk_attr(&free_chunks, c.start + word_size, left_size_word);
       }
 
       return c.start;
@@ -109,7 +127,6 @@ void mem_free(void *ptr)
                     allocated_chunks.chunks[index].size);
   remove_at_index(&allocated_chunks, index);
 }
-
 
 void insert_chunk_attr(chunk_list* list, void* start, size_t size) 
 {
@@ -189,5 +206,37 @@ void merge_fragments(chunk_list* list)
   *list = merged;
 }
 
+static void mark_region(const uintptr_t *start, const uintptr_t *end)
+{
+    for (; start < end; start += 1) {
+        const uintptr_t *p = (const uintptr_t *) *start;
+        for (size_t i = 0; i < allocated_chunks.count; ++i) {
+            chunk c = allocated_chunks.chunks[i];
+            if (c.start <= p && p < c.start + c.size) {
+                if (!reachable_chunks[i]) {
+                    reachable_chunks[i] = true;
+                    mark_region(c.start, c.start + c.size);
+                }
+            }
+        }
+    }
+}
 
+void heap_collect()
+{
+    const uintptr_t *stack_start = (const uintptr_t*)__builtin_frame_address(0);
+    memset(reachable_chunks, 0, sizeof(reachable_chunks));
+    mark_region(stack_start, stack_base + 1);
 
+    to_free_count = 0;
+    for (size_t i = 0; i < allocated_chunks.count; ++i) {
+        if (!reachable_chunks[i]) {
+            assert(to_free_count < MAX_CHUNK_COUNT);
+            to_free[to_free_count++] = allocated_chunks.chunks[i].start;
+        }
+    }
+
+    for (size_t i = 0; i < to_free_count; ++i) {
+        mem_free(to_free[i]);
+    }
+}
